@@ -8,24 +8,43 @@ over a trailer and a row of parked cars, and lands on its wheels.
 
 ![Hung upside down at the lip](shots/v-hang.png)
 
-Open `flip.html` (self-contained, no network, no dependencies). `flip-light.html` is the
+Open `index.html` (self-contained, no network, no dependencies). `light.html` is the
 same page on a light plate.
 
 ## Controls
 
 | | |
 |---|---|
-| hover | pause the idle tour |
-| drag | scrub the run on the console slider in the diorama |
+| drag the console slider | scrub the run — the console is the run control in the diorama |
+| `←` `→` | step through the run |
+| `↑` `↓` | step through the run in bigger jumps |
+| `shift` + `←` `→` | trim the flip before the launch — enough trim over-rotates it and it goes down |
 | `T` | slow to 1/20, then 1/100 |
 | `Space` | relaunch |
-| `←` `→` | trim the flip before the launch — enough trim over-rotates it and it goes down |
 | `E` | fade the body shell to show the tank, plumbing and the ten nozzles |
-| `↑` `↓` | nudge the scrub |
+
+The keys work anywhere on the page; the figure does not need to be clicked first. Stepping
+pauses the tour, and it picks itself up again five seconds after the last input, so the
+idle loop still runs on its own. The hint line under the plate carries the live state —
+`paused`, `×20`, `trim +1`, `shell hidden`.
+
+![The run control in the diorama](shots/console.png)
 
 With `prefers-reduced-motion: reduce` the page paints one honest still frame (the pack
-working hardest, out over the props) and the arrows scrub it frame by frame instead of
+working hardest, out over the props) and the arrows step it frame by frame instead of
 playing.
+
+## Deploy
+
+The page is one static HTML file, so any static host serves it as-is. On Vercel, import
+the repo and deploy: there is no build step, no framework and no dependencies, and
+`index.html` is at the root, so `/` is the figure.
+
+```sh
+npx vercel        # or: import the GitHub repo in the Vercel dashboard
+```
+
+GitHub Pages works the same way (Settings → Pages → deploy from the `main` branch root).
 
 ## One model drives the drawing and the readout
 
@@ -56,7 +75,7 @@ Constants in the caption are illustrative, not a manufacturer's figures.
 - `scene.mjs` — the diorama: ground, ramp, gantry, props, the car's ~70 solids, the console
 - `kit3d.mjs` — convex-solid renderer and painter's-order depth sort
 - `live.js` — runtime: re-poses the car, merges it into the static depth order, draws the plumes
-- `build.mjs` — builds `flip.html` / `flip-light.html`
+- `build.mjs` — builds `index.html` / `light.html`
 - `flip.css` — layer stack and theme
 - `scripts/` — capture / drive / line-end harnesses used for verification
 - `shots/` — reference captures
@@ -64,8 +83,8 @@ Constants in the caption are illustrative, not a manufacturer's figures.
 ## Build and check
 
 ```sh
-node build.mjs            # flip.html
-node build.mjs --light    # flip-light.html
+node build.mjs            # index.html
+node build.mjs --light    # light.html
 ```
 
 The verification harnesses drive a headless Chromium. Set `CHROME_PATH` if Chrome or
@@ -73,8 +92,8 @@ Chromium is not on `PATH`:
 
 ```sh
 export CHROME_PATH=/path/to/chrome
-node scripts/lines.mjs flip.html      # structural check: no floating line ends
-node scripts/capture.mjs flip.html --reduced
+node scripts/lines.mjs index.html     # structural check: no floating line ends
+node scripts/capture.mjs index.html --reduced
 ```
 
 ## Notes

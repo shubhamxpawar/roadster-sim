@@ -64,6 +64,24 @@ const readoutText = (r) =>
   `${r.mph.toFixed(0)} mph · ${r.height.toFixed(1)} m · ${r.pitch.toFixed(0)}° · ${r.bar.toFixed(0)} bar · ` +
   `${r.kn.toFixed(1)} kN · suction ${r.margin.toFixed(1)} kN`;
 
+// The console is the run control, and on a 1360 px scene it is small: a drag
+// starts anywhere over its projected footprint (plus a margin), while a press
+// anywhere else on the figure is left alone rather than throwing the run to an end.
+const consoleHit = (() => {
+  const c = S.CONSOLE, mx = 0.55;
+  const xs = [], ys = [];
+  for (const x of [c.x - c.w / 2 - mx, c.x + c.w / 2 + mx]) {
+    for (const y of [c.y - c.d / 2 - mx, c.y + c.d / 2 + mx]) {
+      for (const z of [-0.35, 1.55]) {
+        const p = k.iso([x, y, z], P);
+        xs.push(p[0]); ys.push(p[1]);
+      }
+    }
+  }
+  const pad = 14;
+  return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+})();
+
 const DATA = {
   W, H, P,
   camera: G.glCamera(P),
@@ -74,6 +92,7 @@ const DATA = {
   cycleT: facts.cycle,
   stillT,
   console: console3d,
+  consoleHit,
   mass: M.MASS,
   tank: M.TANK_P0,
   nozzleN: M.NOZZLE_N,
@@ -101,7 +120,7 @@ const carSvg = k.figureSvg({
 const stage =
   `<div class="rr-stage" tabindex="0" role="slider" aria-roledescription="run control" ` +
   `aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" ` +
-  `aria-label="Thrust-assisted flip. The run plays on a loop; hover to pause. Drag the slider or press the left and right arrow keys to move through the run. Press T to slow to one twentieth, then one hundredth. Press Space to relaunch. Press the left and right arrow keys before the launch to trim the flip and over-rotate it. Press E to fade the body shell.">` +
+  `aria-label="Thrust-assisted flip. The run plays on a loop. Drag the console slider, or press the left and right arrow keys, to step through the run; the tour pauses while you step and picks up again a few seconds later. Press T to slow to one twentieth, then one hundredth. Press Space to relaunch. Hold shift with the left and right arrow keys before the launch to trim the flip and over-rotate it. Press E to fade the body shell.">` +
   `<span class="rr-said" aria-live="polite"></span>` +
   groundSvg +
   `<canvas class="rr-layer rr-gl rr-gl-back" aria-hidden="true"></canvas>` +
@@ -126,7 +145,7 @@ const constants =
 const body = `<div class="rr">${k.plateHtml({
   fig: `Fig ${M.NOZZLES.length}`,
   title: "Thrust-assisted flip",
-  hint: "hover to pause · drag the slider · T slow · Space relaunch · ← → trim · E shell",
+  hint: "drag the console slider · ← → step · shift + ← → trim · T slow · Space relaunch · E shell",
   readout: readoutText(M.readoutOf(M.freshState())),
   keys: [
     { mark: "lit", label: "The ten thrusters light only while they fire" },
@@ -159,7 +178,7 @@ const page = k.pageHtml({
   script: kitScript() + glScript() + MODEL + KIT3D + LIVE,
   width: 1420,
 });
-const name = theme === "light" ? "flip-light.html" : "flip.html";
+const name = theme === "light" ? "light.html" : "index.html";
 writeFileSync(join(HERE, name), page);
 console.log("wrote", name, `${(page.length / 1024).toFixed(0)} KB`,
   `${statics.length + ground.items.length} static parts + ${car.length} car parts`,

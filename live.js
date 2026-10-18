@@ -16,6 +16,8 @@ const svg = stage.querySelector(".rr-stage-svg");
 const readout = root.querySelector("[data-readout]");
 const said = stage.querySelector(".rr-said");
 const still = matchMedia("(prefers-reduced-motion: reduce)");
+// a touch-only device has no keys to press, so the hint drops the key list
+const TOUCH = matchMedia("(hover: none)").matches;
 const LIGHT = D.theme === "light" ? 1 : 0;
 const SLOW_STEPS = [1, 1 / 20, 1 / 100];
 
@@ -286,39 +288,81 @@ function fractionAt(event) {
   const a = iso([tx, ty, 1.2], D.P)[0], b = iso([tx + tw, ty, 1.2], D.P)[0];
   return clampTo((px - a) / Math.max(1, b - a), 0, 1);
 }
-function hold() { advance = false; clearTimeout(idle.t); idle.t = setTimeout(() => { if (!still.matches) { advance = true; scrubF = null; run(); } }, 3200); }
+// The tour pauses while you drive it and picks itself up again a moment after
+// the last input, so it still loops on its own.
+const HOLD_MS = 5000;
 const idle = { t: 0 };
-function scrubTo(f) { scrubF = f; advance = false; hold(); run(); }
+function paintHint() {
+  const el = root.querySelector('[data-corner="hint"]');
+  if (!el) return;
+  const bits = ["drag the console slider"];
+  if (!TOUCH) {
+    bits.push("← → step");
+    bits.push(bias ? `trim ${bias > 0 ? "+" : "−"}${Math.round(Math.abs(bias) * 3)}` : "shift + ← → trim");
+    bits.push(`T slow${slow ? ` ×${slow === 1 ? 20 : 100}` : ""}`);
+    bits.push("Space relaunch");
+    bits.push(shellFade ? "E shell hidden" : "E shell");
+  }
+  if (scrubF !== null) bits.push("paused");
+  el.textContent = bits.join(" · ");
+}
+function resume() { advance = true; scrubF = null; paintHint(); run(); }
+function pause(ms = HOLD_MS) {
+  advance = false;
+  clearTimeout(idle.t);
+  if (!still.matches) idle.t = setTimeout(resume, ms);
+  paintHint();
+}
+function scrubTo(f) { scrubF = clampTo(f, 0, 1); pause(); run(); }
+function overConsole(event) {
+  const [px, py] = vbPoint(event);
+  const [x0, y0, x1, y1] = D.consoleHit;
+  return px >= x0 && px <= x1 && py >= y0 && py <= y1;
+}
 function say() { said.textContent = wordsOf(sim); }
 
-stage.addEventListener("pointerdown", (e) => { scrubTo(fractionAt(e)); stage.setPointerCapture?.(e.pointerId); e.preventDefault(); run(); });
-stage.addEventListener("pointermove", (e) => { if (scrubF !== null && e.buttons) { scrubTo(fractionAt(e)); } else if (e.pointerType !== "touch") { advance = false; clearTimeout(idle.t); run(); } });
-stage.addEventListener("pointerleave", () => { hold(); run(); });
-stage.addEventListener("pointerup", () => { scrubF = null; hold(); run(); });
+// only a drag that starts on the console counts: a press on the car or the ramp
+// just focuses the figure, and must not stop the tour
+let dragging = false;
+stage.addEventListener("pointerdown", (e) => {
+  stage.focus({ preventScroll: true });   // so the figure answers the keys
+  if (!overConsole(e)) return;
+  dragging = true;
+  scrubTo(fractionAt(e));
+  stage.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+});
+stage.addEventListener("pointermove", (e) => { if (dragging && e.buttons) scrubTo(fractionAt(e)); });
+stage.addEventListener("pointerup", () => { if (!dragging) return; dragging = false; pause(); });
+stage.addEventListener("pointercancel", () => { if (!dragging) return; dragging = false; pause(); });
 
-function relaunch() { reset(); scrubF = null; bias = 0; advance = true; run(); say(); }
-stage.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-    const dir = e.key === "ArrowRight" ? 1 : -1;
-    if (still.matches || scrubF !== null) { scrubTo(clampTo(sliderF() + dir * 0.02, 0, 1)); }
-    else { bias = clampTo(bias + dir * 0.34, -1, 1); hold(); run(); }
-  } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-    scrubTo(clampTo(sliderF() + (e.key === "ArrowUp" ? 0.03 : -0.03), 0, 1));
-  } else if (e.key === " " || e.key === "Enter") { relaunch(); }
-  else if (e.key === "t" || e.key === "T") { slow = (slow + 1) % SLOW_STEPS.length; hold(); run(); }
-  else if (e.key === "e" || e.key === "E") { shellFade = !shellFade; hold(); run(); }
+function relaunch() { reset(); clearTimeout(idle.t); scrubF = null; bias = 0; advance = true; paintHint(); run(); say(); }
+
+// The keys hang off the window rather than the figure: the figure is the whole
+// page, and having to click it before the keys answer is a trap.
+function onKey(e) {
+  const k = e.key;
+  const now = scrubF === null ? sliderF() : scrubF;
+  if (k === "ArrowRight" || k === "ArrowLeft") {
+    const dir = k === "ArrowRight" ? 1 : -1;
+    if (e.shiftKey) { bias = clampTo(bias + dir * 0.34, -1, 1); pause(); }
+    else scrubTo(now + dir * 0.02);
+  } else if (k === "ArrowUp" || k === "ArrowDown") {
+    if (!visible) return;               // off screen, let the arrows scroll the page
+    scrubTo(now + (k === "ArrowUp" ? 0.06 : -0.06));
+  } else if (k === " " || k === "Enter") relaunch();
+  else if (k === "t" || k === "T") { slow = (slow + 1) % SLOW_STEPS.length; pause(); }
+  else if (k === "e" || k === "E") { shellFade = !shellFade; pause(); }
   else return;
   e.preventDefault();
   say();
-});
+}
+window.addEventListener("keydown", onKey);
 
-still.addEventListener("change", () => { advance = !still.matches; if (!still.matches) { last = 0; } else { reset(); scrubF = D.stillT / cycleT(); } run(); });
+still.addEventListener("change", () => { advance = !still.matches; if (!still.matches) { last = 0; } else { reset(); scrubF = D.stillT / cycleT(); } paintHint(); run(); });
 new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "160px 0px" }).observe(stage);
 
-if (matchMedia("(hover: none)").matches) {
-  const hint = root.querySelector('[data-corner="hint"]');
-  if (hint) hint.textContent = "drag the slider · T slow · Space relaunch · ← → trim · E shell";
-}
+paintHint();
 
 // reduced motion: one honest still frame, the car hung at the lip
 if (still.matches) { reset(); scrubF = D.stillT / cycleT(); advanceTo(scrubF * cycleT()); advance = false; }
