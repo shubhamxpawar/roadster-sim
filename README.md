@@ -36,15 +36,15 @@ playing.
 
 ## Deploy
 
-The page is one static HTML file, so any static host serves it as-is. On Vercel, import
-the repo and deploy: there is no build step, no framework and no dependencies, and
-`index.html` is at the root, so `/` is the figure.
+The page is one static HTML file with nothing to build, so the repo is published as-is on
+GitHub Pages:
 
-```sh
-npx vercel        # or: import the GitHub repo in the Vercel dashboard
-```
+**<https://shubhamxpawar.github.io/roadster-sim/>**
 
-GitHub Pages works the same way (Settings → Pages → deploy from the `main` branch root).
+That is the `main` branch root, served with `.nojekyll` so Pages hands the files over
+untouched. Any other static host works the same way — there is no build step, no framework
+and no dependencies, and `index.html` at the root is the figure (`npx vercel`, Netlify
+drop, Cloudflare Pages; import the repo, then leave the build command empty).
 
 ## One model drives the drawing and the readout
 
