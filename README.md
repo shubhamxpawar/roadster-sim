@@ -1,10 +1,11 @@
 # Thrust-assisted flip
 
 An isometric, dark-theme figure of a rocket-assisted car that launches, climbs a tall
-curling ramp on suction fans, hangs inverted at the lip, flips one and a half turns
-over a trailer and a row of parked cars, and lands on its wheels.
+curling ramp on suction fans, hangs inverted at the lip, and is thrown back the way it
+came: one backflip, down over its own ramp, to land on its wheels on the approach and
+roll backwards to the line.
 
-![The flip, out over the props](shots/final-zoom.png)
+![The flip, thrown back over the ramp](shots/final-zoom.png)
 
 ![Hung upside down at the lip](shots/v-hang.png)
 
@@ -31,7 +32,7 @@ idle loop still runs on its own. The hint line under the plate carries the live 
 ![The run control in the diorama](shots/console.png)
 
 With `prefers-reduced-motion: reduce` the page paints one honest still frame (the pack
-working hardest, out over the props) and the arrows step it frame by frame instead of
+working hardest, over the run-out) and the arrows step it frame by frame instead of
 playing.
 
 ## Deploy
@@ -62,10 +63,14 @@ rather than a script:
 |---|---|
 | 0–60 mph | 0.90 s |
 | lowest suction margin on the way up | +5.5 kN |
-| flight time | 3.47 s |
-| touchdown pitch | 358° (2° off level) |
-| landing, from the lip | 26.95 m |
-| peak pitch | 795° — it over-rotates past level and catches itself on the under thrusters |
+| flight time | 4.88 s |
+| touchdown pitch | 360° (level) |
+| landing, behind the lip | 18.11 m (5.67 m short of the ramp foot) |
+| peak pitch | 396° — it over-rotates past level and catches itself on the under thrusters |
+
+The lip points back the way the car came, so the run-out is thrown backwards: the pack
+finishes the roll the ramp began, one backflip in all, and the car lands on the approach
+side still travelling backwards.
 
 Constants in the caption are illustrative, not a manufacturer's figures.
 
@@ -104,6 +109,7 @@ node scripts/capture.mjs index.html --reduced
 - The exhaust plumes are a WebGL layer drawn inside the scene camera, split behind and in
   front of the drawing so a plume pointing away from the viewer sits in front of the floor
   but behind the ramp and the car.
-- The trailer and the parked-car row are placed against the measured trajectory: the car's
-  tail sweeps well below its centre of mass coming out of the flip, so anything under the
-  path further downrange would be clipped.
+- The trailer and the parked-car row sit on the far run, under the overhang. The flight
+  goes the other way, back over the ramp, so they are set dressing rather than obstacles:
+  the car's tail sweeps well below its centre of mass coming out of the flip and anything
+  parked under the run-out would be clipped.

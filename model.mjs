@@ -112,22 +112,23 @@ const massOf = (p) => (p * 1e5 * TANK_V) / (AIR_R * AIR_T);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-// Flight schedule. The car leaves the lip inverted (pitch = LIP angle) and turns
-// through one and a bit revolutions to come down level; the remainder past a
-// whole turn is what it takes to arrive on its wheels.
-export const RANGE = 13.4;             // m from the lip to touch-down
+// Flight schedule. The ramp has already rolled the car half over by the time it
+// reaches the lip (pitch = LIP angle), and the lip points back the way it came,
+// so the run-out is thrown backwards, over the ramp, to land on the approach
+// side. RANGE is measured from the lip and is therefore negative. The pack
+// finishes the roll: the whole stunt is one turn, half of it on the ramp.
+export const RANGE = -17.4;            // m from the lip to touch-down (backward)
+export const RUN_T = 3.3;              // s the run-out is spread over
 export const PITCH0 = (LIP.th * 180) / Math.PI;
-export const PITCH_SPAN = 540;         // deg, lip -> level, one full turn and the rest
+export const PITCH_SPAN = 180;         // deg, lip -> level, the rest of the roll
 export const PITCH1 = PITCH0 + PITCH_SPAN;
 
-// The flip is not a clockwork trapezoid: it is a rate profile laid over the 540
-// degrees, shaped by where the ten nozzles can actually push. Reading the torque
-// map, the pack spins the car up hardest just past the lip (pitch 180-270) and
-// brakes hardest near pitch 90 (which is 450 degrees in), and it can do almost
-// nothing around pitch 270 (630 degrees in). So the profile leans on the strong
-// windows and coasts through the weak one. Timing falls out of the profile.
-const FLIP_W1 = 11.0;                   // rad/s, high window
-const FLIP_W2 = 0.8;                    // rad/s, slow settle
+// The flip is not a clockwork trapezoid: it is a rate profile laid over the 180
+// degrees the pack still has to turn, shaped by where the ten nozzles can
+// actually push. Reading the torque map, the pack spins the car up hardest just
+// past the lip (pitch 180-270), which is the strong window the run-out leans on.
+const FLIP_W1 = 4.0;                    // rad/s, high window
+const FLIP_W2 = 0.29;                   // rad/s, slow settle
 const FLIP_S1 = 0.24;                   // fraction of the turn spent spinning up
 const FLIP_S2 = 0.58;                   // end of the high plateau
 const FLIP_S3 = 0.94;                   // end of the hard brake
@@ -195,10 +196,15 @@ const VSAFE_MAX = 13.0;                 // m/s cap
 
 // Pitch tracking gains: feed-forward from the trapezoid plus a small angle term
 // and a rate term. These are the numbers that keep the flip on schedule.
-const PITCH_KP = 8.0;                   // 1/s^2
+const PITCH_KP = 24.0;                  // 1/s^2
 const PITCH_KD = 20.0;                  // 1/s
 const PITCH_KI = 5.0;                   // 1/s^3
 const PITCH_I_MAX = 34.0;               // rad/s^2, integral authority cap
+// The trim (shift + arrows) moves the attitude the flip is aiming at, and it
+// holds all the way down the run-out: full trim aims the car about 35 degrees
+// off level, well past what the under thrusters can catch, so it goes down.
+// Aiming it this way keeps the trim's authority whatever the gains above become.
+const TRIM_DEG = 35.0;
 const FLARE_GATE = 0.25;              // fraction of weight of up-force before the flare fires
 const FLARE_CAP = 0.85;                 // fraction of the available up-force the flare may ask for
 
@@ -414,19 +420,23 @@ export function step(st, dt, user = {}) {
     // it up, so gravity has it and the pack only steers; once it swings upright
     // the under thrusters catch it and flare.
     const u = clamp(st.phaseT / FLIGHT_T, 0, 1);
+    // the run-out geometry is spread over the whole descent, not over the roll:
+    // the roll is quick, and the car then rides the flare down, still travelling
+    // backwards, so it does not sling itself backwards and then drop vertically
+    const uX = clamp(st.phaseT / RUN_T, 0, 1);
     const du = 1e-3;
-    const xT = flightX(u, st.x0);
-    const vxT = (flightX(Math.min(1, u + du), st.x0) - flightX(Math.max(0, u - du), st.x0)) / (2 * du * FLIGHT_T);
+    const xT = flightX(uX, st.x0);
+    const vxT = (flightX(Math.min(1, uX + du), st.x0) - flightX(Math.max(0, uX - du), st.x0)) / (2 * du * RUN_T);
     const axT = 4.5 * (xT - st.x) + 3.5 * (vxT - st.vx);
-    const pT = pitchTarget(u);
+    const pT = pitchTarget(u) + bias * TRIM_DEG;
     let dth = pT - st.pitch;
     dth = ((dth % 360) + 540) % 360 - 180;
     // past the schedule the target is a fixed level: hold it with a plain
     // PD and no feed-forward (the one-sided rate difference would otherwise
     // read as a deceleration that never comes and leave a slow drift)
     const ext = u >= 1;
-    const wT = ext ? 0 : rateAt(u) + bias * 0.9;
-    const alphaT = ext ? 0 : accAt(u) + (bias ? -bias * 0.9 * 2.5 : 0);
+    const wT = ext ? 0 : rateAt(u);
+    const alphaT = ext ? 0 : accAt(u);
     const dthRad = (dth * Math.PI) / 180;
     // past the end of the schedule the target stops moving: drop the integral
     // so it cannot sit wound up and slowly unwind the car off level
@@ -469,8 +479,9 @@ export function step(st, dt, user = {}) {
     const level = ((st.pitch % 360) + 360) % 360;
     const off = Math.min(level, 360 - level);
     // the flight ends when the wheels actually reach the ground, not when the
-    // schedule runs out, so there is no drop to hide
-    if (st.z <= CG_H + 0.015 || st.phaseT > FLIGHT_T + 2.5) {
+    // schedule runs out, so there is no drop to hide. The backstop is sized to
+    // the whole run-out (the roll is shorter than the descent), not to the roll.
+    if (st.z <= CG_H + 0.015 || st.phaseT > RUN_T + 2.5) {
       st.z = Math.max(CG_H, st.z);
       st.vzPrev = st.vz;
       if (off > 24 || st.vz < -8.5 || Math.abs(st.vx) > 15) st.crashed = true;
@@ -484,12 +495,16 @@ export function step(st, dt, user = {}) {
       st.pitch += ((st.omega * 180) / Math.PI) * dt;
       st.vx -= Math.sign(st.vx) * Math.min(Math.abs(st.vx), (5.2 + 0.06 * Math.abs(st.vx)) * dt);
     } else {
-      // wheels down: the nose settles and the tyres and front thrusters brake
+      // wheels down: the nose settles and the tyres and thrusters brake. The car
+      // arrives off the lip travelling backwards, so the brake is whichever
+      // group pushes against the way it is actually going.
       st.pitch = 0;
       st.omega = 0;
-      const brake = clamp(st.vx / 6, 0, 1);
-      want.levels = NOZZLES.map((n) => (n.group === "front" ? brake * lim * 0.8 : 0));
-      st.vx -= (4.6 + 3.2 * brake) * dt;
+      const dir = st.vx > 0 ? 1 : -1;
+      const brake = clamp(Math.abs(st.vx) / 6, 0, 1);
+      const group = dir > 0 ? "front" : "rear";
+      want.levels = NOZZLES.map((n) => (n.group === group ? brake * lim * 0.8 : 0));
+      st.vx -= dir * (4.6 + 3.2 * brake) * dt;
     }
     st.vz = 0;
     st.x += st.vx * dt;

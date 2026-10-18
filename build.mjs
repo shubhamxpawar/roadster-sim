@@ -52,11 +52,11 @@ const console3d = S.consoleDynamics(P);
 const cycle = M.cycleTable();
 const facts = cycle.facts;
 
-// The reduced-motion still: out over the props, clear of the gantry, at the
+// The reduced-motion still: back over the ramp and well clear of it, at the
 // moment the pack is working hardest — the one honest frame that is shown.
 let stillT = 0, hardest = -1;
 for (const row of cycle.rows) {
-  if (row.phase !== "fly" || row.x < 15.5) continue;
+  if (row.phase !== "fly" || row.z < 6) continue;
   if (row.thrust > hardest) { hardest = row.thrust; stillT = row.t; }
 }
 
@@ -110,7 +110,7 @@ const groundSvg =
 
 const carSvg = k.figureSvg({
   width: W, height: H,
-  label: "A rocket car on a test ground: it launches, climbs a tall curling ramp on suction fans, hangs inverted at the top, and flips over a row of parked cars and a trailer to land on its wheels.",
+  label: "A rocket car on a test ground: it launches, climbs a tall curling ramp on suction fans, hangs inverted at the lip, then flips once and is thrown back over its own ramp to land on its wheels on the approach.",
   body: `<g class="rr-solids" data-layer="solids">${stageInner}</g>` +
     console3d.knob.svg + console3d.wheel.svg +
     `<g class="rr-needle"><path class="iso-line" data-tone="hi" d=""/></g>`,
@@ -132,13 +132,14 @@ const stage =
 const caption =
   `A rocket-assisted car flips off the top of a curling ramp. It leaves the line and is at 60 mph ` +
   `in ${(facts.sixty - 1.3).toFixed(2)} s (illustrative figures, not a manufacturer's). Suction fans hold it to ` +
-  `${M.RAMP_L.toFixed(0)} m of curved ramp as the surface rolls it upside down; the smallest suction margin on the way up is ` +
-  `${(facts.lowestMargin / 1000).toFixed(1)} kN, and it hangs there until the pack takes over. The thrusters then turn it through ` +
-  `one and a half turns — the pitch comes out of where the ten nozzles sit, so it can spin the flip up hard just past the lip and ` +
-  `brake hard near the far side, but it has no brake at all near 270°, which is why it over-rotates past level and catches itself ` +
-  `on the under thrusters. It clears the trailer and the parked cars and comes down on its wheels ${facts.landingX.toFixed(0)} m from the ` +
-  `lip after ${facts.flightT.toFixed(1)} s of flight, and brakes to a stop. The tank is finite: thrust falls as the pressure drops, and ` +
-  `the readout shows both.`;
+  `${M.RAMP_L.toFixed(0)} m of curved ramp as the surface rolls it half over; the smallest suction margin on the way up is ` +
+  `${(facts.lowestMargin / 1000).toFixed(1)} kN, and it hangs inverted at the lip until the pack takes over. The lip points ` +
+  `back the way it came, so the pack finishes the turn rather than starting one: the pitch comes out of where the ten nozzles ` +
+  `sit, and there is no brake at all near 270°, so it over-rotates past level and catches itself on the under thrusters. One ` +
+  `backflip, and it is thrown back over its own ramp: it comes down on its wheels ` +
+  `${(M.LIP.x - facts.landingX).toFixed(0)} m behind the lip, on the approach side, ${facts.flightT.toFixed(1)} s after the ` +
+  `suction cuts. It is still travelling backwards when it lands, and brakes to a stop running tail-first for the line. The tank ` +
+  `is finite: thrust falls as the pressure drops, and the readout shows both.`;
 const constants =
   `mass ${M.MASS} kg · tank ${M.TANK_P0} bar · ${M.NOZZLE_N.toLocaleString()} N per nozzle · ramp radius ${M.RAMP_R.toFixed(1)} m`;
 
@@ -149,7 +150,7 @@ const body = `<div class="rr">${k.plateHtml({
   readout: readoutText(M.readoutOf(M.freshState())),
   keys: [
     { mark: "lit", label: "The ten thrusters light only while they fire" },
-    { mark: "raised", label: "Ramp, gantry, parked cars and trailer to clear" },
+    { mark: "raised", label: "Ramp, gantry, parked cars and trailer on the test ground" },
     { mark: "flat", label: "The run, from the line to the landing circle" },
   ],
   caption: `${caption} ${constants}.`,

@@ -1,10 +1,10 @@
-// The diorama: a test ground, a tall curling ramp, a row of parked cars, a
-// trailer to clear, and the car itself — built from small convex solids and
-// drawn through kit3d's painter's-order renderer.
+// The diorama: a test ground, a tall curling ramp, a row of parked cars and a
+// trailer on the far run, and the car itself — built from small convex solids
+// and drawn through kit3d's painter's-order renderer.
 
 import * as k from "./kit/iso-kit.mjs";
 import * as T from "./kit3d.mjs";
-import { NOZZLES } from "./model.mjs";
+import { NOZZLES, LIP, RANGE } from "./model.mjs";
 
 const DEG = Math.PI / 180;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -13,15 +13,12 @@ export const GROUND = { x: -20, y: -8.6, w: 56, d: 17.2 };
 export const Z_GROUND = 0;
 export const RAMP_W = 2.6;
 export const RAIL_Y = 1.36;
-// The trailer is parked under the run-out from the loop rather than further
-// downrange: the car's tail sweeps far below its centre of mass as it comes out
-// of the flip, so a trailer any further along would be hit. Parked here it keeps
-// its full size and still leaves more than a metre of clearance.
+// The props sit on the far side of the ground, under the run-out from the loop.
+// The lip throws the car backwards, so the run-out is behind the ramp and the
+// flight never reaches them: they are part of the test ground, not obstacles.
 export const TRAILER = { x: 12.0, w: 4.5, y: -1.3, d: 2.6, h: 3.9 };
 export const CAR_ROW_X = 21.0;
-// the row straddles the run rather than blocking it: the flight path at this x
-// is only about a metre up, so a car in the middle of the lane would be hit.
-// Two pairs either side leave a lane for the flip to come down through.
+// the row straddles the far run rather than blocking it
 export const CAR_ROW_Y = [-6.4, -4.0, 4.0, 6.4];
 export const CONSOLE = { x: -7.5, y: 5.4, w: 3.2, d: 1.5, h: 0.95 };
 
@@ -90,11 +87,13 @@ export function buildRamp(P, push, RAMP_L, trackAt) {
       push(T.rod([a.x - 0.4 * a.ux, RAIL_Y, a.z - 0.4 * a.uz], [m.x - 0.4 * m.ux, RAIL_Y, 0], 0.05, 0.05, 6), { tone: "faint" });
     }
   }
-  // the gantry: a column behind the ramp with two arms reaching over the lip
+  // the gantry: a column behind the ramp with two arms reaching over the lip.
+  // The lower arm clears the run-out: the car is thrown back over its own ramp
+  // and its nose passes just under this arm on the way.
   const GY = -2.9;
   push(T.box(11.7, GY, 0, 0.5, 0.5, 19.4), { tone: "mid" });
   push(T.box(11.7, GY, 0, 1.0, 0.9, 0.3), { tone: "lo" });
-  for (const [ax, az] of [[12.55, 18.75], [10.4, 16.4]]) {
+  for (const [ax, az] of [[12.55, 18.75], [10.4, 17.2]]) {
     push(T.box(ax, (GY + RAIL_Y + 0.3) / 2 + 0.0, az, 1.9, 1.4, 0.18), { tone: "mid" });
     push(T.rod([ax - 0.8, GY, az], [ax - 0.8, RAIL_Y + 0.3, az], 0.06, 0.06, 6), { tone: "faint" });
     push(T.rod([ax - 0.8, RAIL_Y + 0.3, az], [ax - 0.8, RAIL_Y + 0.3, az - 0.9], 0.05, 0.05, 6), { tone: "faint" });
@@ -112,11 +111,13 @@ export function buildGround(P, push) {
   // start line and lane dashes as solid tiles, so nothing floats
   push(T.box(-14, 0, 0.1, 0.35, 3.2, 0.02), { tone: "hi", crease: "none" });
   for (let x = -19; x < 35; x += 3) push(T.box(x, 0, 0.1, 1.4, 0.12, 0.02), { tone: "lo", crease: "none" });
-  // a painted landing circle past the props
+  // a painted landing circle, on the approach run where the flip is thrown back
+  // down: the lip throws the car backwards, so it lands behind the ramp
+  const lift = LIP.x + RANGE;
   for (let i = 0; i < 32; i++) {
     const a0 = (i / 32) * Math.PI * 2, a1 = ((i + 0.55) / 32) * Math.PI * 2;
-    const r = 6.2;
-    push(T.rod([26 + r * Math.cos(a0), r * Math.sin(a0), 0.1], [26 + r * Math.cos(a1), r * Math.sin(a1), 0.1], 0.09, 0.09, 6), { tone: "faint", crease: "none" });
+    const r = 3.6;
+    push(T.rod([lift + r * Math.cos(a0), r * Math.sin(a0), 0.1], [lift + r * Math.cos(a1), r * Math.sin(a1), 0.1], 0.09, 0.09, 6), { tone: "faint", crease: "none" });
   }
   // measurement flags along the far edge: small posts with cross bars
   for (let i = 0; i < 9; i++) {
